@@ -11,7 +11,6 @@ Cloudflare script to send messages to your account via telegram's bot api
 
 */
 
-
 async function genResponse(s_f, resp_msg, code = 200) {
     return new Response(
         JSON.stringify({
@@ -78,11 +77,6 @@ async function handleRequest(request) {
     const resp = await sendit.json()
 
     // Send a response
-    if (resp.ok) {
-        var clt_msg = "success"
-    } else {
-        var clt_msg = "success"
-    }
-
+    var clt_msg = resp.ok ? "success" : "failure"
     return await genResponse(clt_msg, "Successfully sent the message!", clt_msg === "success" ? 200 : 500)
 }
