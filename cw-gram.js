@@ -11,6 +11,15 @@ Cloudflare script to send messages to your account via telegram's bot api
 
 */
 
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 async function genResponse(s_f, resp_msg, code = 200) {
     return new Response(
         JSON.stringify({
@@ -27,38 +36,56 @@ async function genResponse(s_f, resp_msg, code = 200) {
     )
 }
 
-
-addEventListener("fetch", (event) => {
-    event.respondWith(handleRequest(event.request));
-});
-
 async function handleRequest(request) {
+    // Handle CORS preflight
+    if (request.method === "OPTIONS") {
+        return new Response(null, {
+            status: 204,
+            headers: {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type"
+            }
+        })
+    }
+
     // Check request method
     if (request.method != "POST") {
         return await genResponse("failure", "Do a post request bruh!", 405)
     }
 
+    // Validate environment variables exist
+    if (!BOT_TOKEN || !TO_ID) {
+        return await genResponse("failure", "Server ain't configured right, chief!", 500)
+    }
+
     // Get the details
-    const jreq = await request.json()
+    let jreq
+    try {
+        jreq = await request.json()
+    } catch {
+        return await genResponse("failure", "Invalid JSON, don't send garbage.", 400)
+    }
+
     let name = jreq.name
     let email = jreq.email
-    let subject = jreq.subject
+    let subject = jreq.subject || "No subject"
     let msg = jreq.msg
 
     // We need fucking name, email and a message to send
     if (!name || !email || !msg) {
-        return await genResponse("failure", "You gotta fill name, email and msg values son!", 413)
+        return await genResponse("failure", "You gotta fill name, email and msg values son!", 400)
     }
 
-    // Preparing the message to send
+    // Preparing the message to send (escaped for safety)
     var to_send_msg = `
 <b>💬 New Message</b>
 
-<b>Name:</b> <code>${name}</code>
-<b>Email:</b> ${email}
-<b>Subject:</b> <code>${subject}</code>
+<b>Name:</b> <code>${escapeHtml(name)}</code>
+<b>Email:</b> ${escapeHtml(email)}
+<b>Subject:</b> <code>${escapeHtml(subject)}</code>
 <b>Message:</b>
-<code>${msg}</code>`
+<code>${escapeHtml(msg)}</code>`
 
     // Sending the message
     var content = {
@@ -77,6 +104,12 @@ async function handleRequest(request) {
     const resp = await sendit.json()
 
     // Send a response
-    var clt_msg = resp.ok ? "success" : "failure"
-    return await genResponse(clt_msg, "Successfully sent the message!", clt_msg === "success" ? 200 : 500)
+    if (!resp.ok) {
+        return await genResponse("failure", `Telegram said nope: ${resp.description || "Unknown error"}`, 500)
+    }
+    return await genResponse("success", "Successfully sent the message!", 200)
+}
+
+export default {
+    fetch: handleRequest
 }
