@@ -36,7 +36,10 @@ async function genResponse(s_f, resp_msg, code = 200) {
     )
 }
 
-async function handleRequest(request) {
+async function handleRequest(request, env) {
+    // Accept env vars
+    const { BOT_TOKEN, TO_ID } = env
+    
     // Handle CORS preflight
     if (request.method === "OPTIONS") {
         return new Response(null, {
